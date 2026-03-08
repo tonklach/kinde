@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { 
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://lh3.googleusercontent.com/p/AF1QipOS2YycqnUOdsyZ0igM2hyikjud4AHAWTCTRo_G=s1360-w1360-h1020-rw') no-repeat center center fixed;
+      display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0;
+    }
+
+    /* --- SMALL COMPACT PILL --- */
+    #announcement-bar {
+      display: none; 
+      position: fixed;
+      bottom: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: auto;
+      min-width: 180px;
+      max-width: 85%;
+      background: #323232;
+      color: white;
+      padding: 8px 18px;
+      text-align: center;
+      font-size: 13px;
+      border-radius: 25px;
+      z-index: 10000;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      transition: background 0.3s ease;
+    }
+    
+    .fade-in { animation: slideUp 0.4s ease-out; }
+    @keyframes slideUp { 
+      from { transform: translateX(-50%) translateY(50px); opacity: 0; } 
+      to { transform: translateX(-50%) translateY(0); opacity: 1; } 
+    }
+
+    .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 340px; text-align: center; margin: 20px 0; }
+    .wide { width: 95% !important; max-width: 1000px; }
+    input { width: 100%; margin: 8px 0; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+    button { padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+    .hidden { display: none !important; }
+    
+    .portal-btn { background: #34a853; margin-bottom: 5px; }
+    .calc-btn { background: #fb8c00; }
+    .list-btn { background: #666; }
+    .broadcast-btn { background: #d93025; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; background: white; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .btn-save { background: #34a853; padding: 5px; font-size: 10px; width: auto; margin-right: 2px; color:white; border-radius:4px;}
+    .btn-del { background: #d93025; padding: 5px; font-size: 10px; width: auto; color:white; border-radius:4px;}
+    .admin-badge { background: #d93025; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; }
+  </style>
+</head>
+<body>
+
+  <div id="announcement-bar" class="fade-in"></div>
+
+  <div id="authBox" class="card">
+    <h2 id="title">Login</h2>
+    <div id="signupFields" class="hidden">
+      <input type="text" id="name" placeholder="Full Name">
+      <input type="email" id="email" placeholder="Email Address">
+    </div>
+    <input type="text" id="user" placeholder="Username">
+    <input type="password" id="pass" placeholder="Password">
+    <button id="submitBtn" onclick="runAuth()">Continue</button>
+    <div id="msg" style="margin-top:10px; font-weight:bold; font-size:0.8em;"></div>
+    <div style="cursor:pointer; color:#1a73e8; margin-top:15px; font-size:0.8em;" onclick="toggleMode()">Switch Login/Signup</div>
+  </div>
+
+  <div id="memberBox" class="card hidden">
+    <h2>Welcome, <span id="dispName"></span> <span id="adminBadge" class="hidden admin-badge">ADMIN</span></h2>
+    
+    <div style="margin: 20px 0;">
+      <button class="portal-btn" style="width:100%" onclick="goTo('attendance')">Open Attendance Tracker</button>
+      <button class="portal-btn calc-btn" style="width:100%" onclick="goTo('cc')">Circle Calculator</button>
+      <button class="portal-btn list-btn" style="width:100%" onclick="goTo('list')">Prefect List</button>
+      <button id="adminBroadcastBtn" class="portal-btn broadcast-btn hidden" style="width:100%" onclick="goTo('broadcast')">📢 Broadcast Center</button>
+    </div>
+
+    <div id="adminArea" class="hidden">
+      <hr><h3>Admin Control: All Users</h3>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+          <tbody id="userList"></tbody>
+        </table>
+      </div>
+    </div>
+    <button onclick="signOut()" style="background:#444; margin-top:20px; width: 100%;">Sign Out</button>
+  </div>
+
+  <script>
+    let mode = "login";
+    let lastMsg = "";
+
+    // --- 1. AUTO-POLLING ENGINE ---
+    function syncAnnouncement() {
+      google.script.run.withSuccessHandler(function(msg) {
+        const bar = document.getElementById('announcement-bar');
+        if (msg !== lastMsg) {
+          lastMsg = msg;
+          if (msg && msg.trim() !== "") {
+            bar.innerHTML = "💬 " + msg;
+            bar.style.display = 'block';
+            bar.style.background = msg.toUpperCase().includes("URGENT") ? "#d93025" : "#323232";
+          } else {
+            bar.style.display = 'none';
+          }
+        }
+      }).getAnnouncement();
+    }
+    
+    // Check every 10 seconds
+    syncAnnouncement();
+    setInterval(syncAnnouncement, 10000);
+
+    // --- 2. NAVIGATION & AUTH ---
+    function toggleMode() {
+      mode = (mode === "login") ? "signup" : "login";
+      document.getElementById('title').innerText = mode === "login" ? "Login" : "Sign Up";
+      document.getElementById('signupFields').classList.toggle('hidden', mode === "login");
+      document.getElementById('msg').innerText = "";
+    }
+
+    function goTo(page) { window.top.location.href = "<?= ScriptApp.getService().getUrl() ?>?page=" + page; }
+    function signOut() { window.top.location.href = "<?= ScriptApp.getService().getUrl() ?>"; }
+
+    // --- 3. ADMIN FUNCTIONS ---
+    function loadUsers() {
+      google.script.run.withSuccessHandler(users => {
+        const list = document.getElementById('userList');
+        list.innerHTML = users.slice(1).map((u, i) => `<tr>
+          <td><input type="text" id="u${i}" value="${u[0]}" style="width:70px"></td>
+          <td><input type="text" id="n${i}" value="${u[4]}" style="width:90px"></td>
+          <td><input type="text" id="e${i}" value="${u[5]}" style="width:120px"></td>
+          <td><input type="text" id="r${i}" value="${u[6]}" style="width:60px"></td>
+          <td>
+            <button class="btn-save" onclick="upd(${i+1})">Save</button>
+            <button class="btn-del" onclick="del(${i+1})">Del</button>
+          </td>
+        </tr>`).join('');
+      }).getAllUsers();
+    }
+
+    function upd(row) {
+      const i = row - 1;
+      const data = { 
+        username: document.getElementById('u'+i).value, 
+        name: document.getElementById('n'+i).value, 
+        email: document.getElementById('e'+i).value, 
+        role: document.getElementById('r'+i).value 
+      };
+      google.script.run.withSuccessHandler(() => { alert("Saved"); loadUsers(); }).adminUpdateUser(row, data);
+    }
+
+    function del(row) {
+      if(confirm("Delete this account?")) {
+        google.script.run.withSuccessHandler(() => { alert("Deleted"); loadUsers(); }).adminDeleteUser(row);
+      }
+    }
+
+    // --- 4. AUTH EXECUTION ---
+    function runAuth() {
+      const payload = { 
+        action: mode, 
+        name: document.getElementById('name').value, 
+        username: document.getElementById('user').value, 
+        email: document.getElementById('email').value, 
+        password: document.getElementById('pass').value 
+      };
+      if (!payload.username || !payload.password) return alert("Fill all fields");
+
+      document.getElementById('msg').innerText = "Processing...";
+      google.script.run.withSuccessHandler(res => {
+        if (res.success) {
+          if (mode === "login") {
+            document.getElementById('authBox').classList.add('hidden');
+            document.getElementById('memberBox').classList.remove('hidden');
+            document.getElementById('dispName').innerText = res.name;
+            if (res.role === "admin") {
+              document.getElementById('memberBox').classList.add('wide');
+              document.getElementById('adminBadge').classList.remove('hidden');
+              document.getElementById('adminArea').classList.remove('hidden');
+              document.getElementById('adminBroadcastBtn').classList.remove('hidden');
+              loadUsers();
+            }
+          } else { alert("Account created!"); toggleMode(); }
+        } else { document.getElementById('msg').innerText = res.msg; document.getElementById('msg').style.color="red";}
+      }).handleAuth(payload);
+    }
+  </script>
+</body>
+</html>
